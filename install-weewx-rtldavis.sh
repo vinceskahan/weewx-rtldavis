@@ -54,7 +54,7 @@ then
     if [ "x${INSTALL_NGINX}" = "x1" ]
     then
         sudo apt-get install -y nginx sqlite
-        sudo ln -s /var/www/html/weewx /home/weewx/public_html
+        sudo ln -s /home/weewx/public_html /var/www/html/weewx
     fi
 fi
 
