@@ -17,6 +17,7 @@ INSTALL_WEEWX=1            # weewx itself
 INSTALL_NGINX=1            # webserver for weewx
 INSTALL_LIBRTLSDR=1        # librtlsdr software
 INSTALL_RTLDAVIS=1         # weewx rtldavis driver
+RUN_WEEWX_AT_BOOT=1        # enable weewx in systemctl to startup at boot
 
 #----------------------------------------------
 #
@@ -162,6 +163,14 @@ then
     echo "editing debug..."
     sudo sed -i -e s/debug_rtld\ =\ 2/debug_rtld\ =\ 3/             /home/weewx/weewx.conf
 
+fi
+
+#-----------------------------------------------
+
+if [ "x${RUN_WEEWX_AT_BOOT}" = "x1" ]
+then
+    # enable weewx for next reboot
+    sudo systemctl enable weewx
 fi
 
 #-----------------------------------------------
