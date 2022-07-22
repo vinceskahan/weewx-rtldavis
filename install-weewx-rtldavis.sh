@@ -53,7 +53,7 @@ then
     if [ "x${INSTALL_NGINX}" = "x1" ]
     then
         sudo apt-get install -y nginx sqlite
-        ln -s /var/www/html/weewx /home/weewx/public_html
+        sudo ln -s /var/www/html/weewx /home/weewx/public_html
     fi
 fi
 
@@ -93,6 +93,19 @@ then
     sudo make install
     sudo ldconfig
 
+    # add to .profile for future
+    #    'source ~/.profile' to catch up interactively
+    GO_INFO_FOUND=`grep CONFIGURE_GO_SETTINGS ~/.profile | wc -l | awk '{print $1}'`
+    if [ "x${GO_INFO_FOUND}" = "x0"  ]
+    then
+        echo ''                                                   >> ~/.profile
+        echo '### CONFIGURE_GO_SETTINGS for rtdavis installation' >> ~/.profile
+        echo 'export GOROOT=/usr/lib/go'                          >> ~/.profile
+        echo 'export GOPATH=$HOME/work'                           >> ~/.profile
+        echo 'export PATH=$PATH:$GOROOT/bin:$GOPATH/bin'          >> ~/.profile
+    fi
+
+    # for running here
     export GOROOT=/usr/lib/go
     export GOPATH=$HOME/work
     export PATH=$PATH:$GOROOT/bin:$GOPATH/bin
@@ -153,7 +166,7 @@ fi
 
 #-----------------------------------------------
 #
-# at this point you can run 'systemctl start weewx' to start weewx using the installed driver
+# at this point you can run 'sudo systemctl start weewx' to start weewx using the installed driver
 # be sure to 'sudo tail -f /var/log/syslog' to watch progress (^C to exit)
 #
 # patience is required - on a pi4 running a RTL-SDR.COM RTL2832U dongle,
@@ -162,5 +175,7 @@ fi
 # you might want to set the various driver debug settings to 0
 # after you get it working to quiet things down especially if
 # you use debug=1 for other reasons in your weewx configuration
+#
+# if you want to run 'rtldavis' as a non-privileged user, you should reboot here
 #
 #-----------------------------------------------
