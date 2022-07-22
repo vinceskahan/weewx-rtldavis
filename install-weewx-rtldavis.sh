@@ -14,9 +14,9 @@
 
 INSTALL_PREREQS=1          # package prerequisites to build the software
 INSTALL_WEEWX=1            # weewx itself
+INSTALL_NGINX=1            # webserver for weewx
 INSTALL_LIBRTLSDR=1        # librtlsdr software
 INSTALL_RTLDAVIS=1         # weewx rtldavis driver
-INSTALL_NGINX=1            # webserver for weewx
 
 #----------------------------------------------
 #
@@ -24,6 +24,7 @@ INSTALL_NGINX=1            # webserver for weewx
 
 if [ "x${INSTALL_PREREQS}" = "x1" ]
 then
+    echo ".......installing prereqs..........."
     sudo apt-get update 
     sudo apt-get -y install python3-configobj python3-pil python3-serial python3-usb python3-pip python3-ephem python3-cheetah
     sudo apt-get -y install golang git cmake librtlsdr-dev
@@ -35,6 +36,7 @@ fi
 
 if [ "x${INSTALL_WEEWX}" = "x1" ]
 then
+    echo ".......installing weewx............."
     wget https://weewx.com/downloads/released_versions/weewx-4.8.0.tar.gz -O weewx-4.8.0.tar.gz
     tar zxvf weewx-4.8.0.tar.gz 
     cd weewx-4.8.0/
@@ -64,8 +66,9 @@ fi
 #           we suppress librtlsdr writing a conflicting udev rules file into place
 #
 
-if [ "x${INSTALL_LIBRTLSDR}" = "x1"]
+if [ "x${INSTALL_LIBRTLSDR}" = "x1" ]
 then
+    echo ".......installing librtlsdr........."
 
     # set up udev rules
     #
@@ -73,38 +76,30 @@ then
     #    Bus 001 Device 003: ID 0bda:2838 Realtek Semiconductor Corp. RTL2838 DVB-T
 
     echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="0bda", ATTRS{idProduct}=="2838", GROUP="adm", MODE="0666", SYMLINK+="rtl_sdr"' > /tmp/udevrules
-    sudo cp /tmp/udevrules /etc/udev/rules.d/20.rtsdr.rules
+    sudo mv /tmp/udevrules /etc/udev/rules.d/20.rtsdr.rules
 
     # get librtlsdr
     cd /home/pi
-    git clone https://github.com/steve-m/librtlsdr.git
+    if [ -d librtlsdr ]
+    then
+	rm -rf librtlsdr
+    fi
+    git clone https://github.com/steve-m/librtlsdr.git librtlsdr
     cd librtlsdr
     mkdir build
     cd build
-    cmake ../ -DINSTALL_UDEV_RULES=OFF
+    cmake ../ -DINSTALL_UDEV_RULES=OFF -DDETACH_KERNEL_DRIVER=ON
     make
     sudo make install
     sudo ldconfig
 
-    # edit .profile
-    GO_INFO_FOUND=`grep CONFIGURE_GO_SETTINGS ~/.profile | wc -l | awk '{print $1}'`
-    if [ "x${GO_INFO_FOUND}" = "x0"  ]
-    then
-        echo ''                                                   >> ~/.profile
-        echo '### CONFIGURE_GO_SETTINGS for rtdavis installation' >> ~/.profile
-        echo 'export GOROOT=/usr/lib/go'                          >> ~/.profile
-        echo 'export GOPATH=$HOME/work'                           >> ~/.profile
-        echo 'export PATH=$PATH:$GOROOT/bin:$GOPATH/bin'          >> ~/.profile
-    fi
+    export GOROOT=/usr/lib/go
+    export GOPATH=$HOME/work
+    export PATH=$PATH:$GOROOT/bin:$GOPATH/bin
 
-    # activate .profile
-    source ~/.profile
-
-    # get rtldavis
+    # get rtldavis the hard way - this does not work
     cd /home/pi
-    go get -v github.com/lheijst/rtdavis
-
-    # compile go sources
+    go get -v github.com/lheijst/rtldavis
     cd $GOPATH/src/github.com/lheijst/rtldavis
     git submodule init
     git submodule update
@@ -119,8 +114,8 @@ then
     # again, for lsb output containing:
     #   Bus 001 Device 003: ID 0bda:2838 Realtek Semiconductor Corp. RTL2838 DVB-T
     #
-    #      echo "blacklist blacklist dvb_usb_rtl28xxu" > /tmp/blacklist
-    #      sudo cp /tmp/blacklist /etc/modprobe.d/blacklist_dvd_usb_rtl28xxu
+    echo "blacklist dvb_usb_rtl28xxu" > /tmp/blacklist
+    sudo cp /tmp/blacklist /etc/modprobe.d/blacklist_dvd_usb_rtl28xxu
     #
     # then reboot and try 'rtldavis -tf US' again
     #
@@ -135,20 +130,24 @@ fi
 
 if [ "x${INSTALL_RTLDAVIS}" = "x1" ]
 then
+    echo ".......installing rtldavis.........."
     cd /home/pi
-    wget -O weewx-rtldavis-master.zip https://github.com/lheijst/weewx-rtldavis/archive/master.zip
+    sudo wget -O weewx-rtldavis-master.zip https://github.com/lheijst/weewx-rtldavis/archive/master.zip
     sudo /home/weewx/bin/wee_extension --install weewx-rtldavis-master.zip
     sudo /home/weewx/bin/wee_config --reconfigure --driver=user.rtldavis --no-prompt
 
     # remove the template instruction from the config file
-    sudo sed -i '[options]||'      /home/weewx/weewx.conf
+    echo "editing options..."
+    sudo sed -i -e s/\\[options\\]// /home/weewx/weewx.conf
 
     # US frequencies and imperial units
-    sudo sed -i 'tf = EU|tf = US|'                          /home/weewx/weewx.conf
-    sudo sed -i 'rain_bucket_type = 1|rain_bucket_type = 0' /home/weewx/weewx.conf
+    echo "editing US settings..."
+    sudo sed -i -e s/frequency\ =\ EU/frequency\ =\ US/             /home/weewx/weewx.conf
+    sudo sed -i -e s/rain_bucket_type\ =\ 1/rain_bucket_type\ =\ 0/ /home/weewx/weewx.conf
 
     # for very verbose logging of readings
-    sudo sed -i 'debug_rtld = 2|debug_rtld = 3'             /home/weewx/weewx.conf
+    echo "editing debug..."
+    sudo sed -i -e s/debug_rtld\ =\ 2/debug_rtld\ =\ 3/             /home/weewx/weewx.conf
 
 fi
 
