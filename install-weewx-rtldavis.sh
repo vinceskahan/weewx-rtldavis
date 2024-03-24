@@ -6,56 +6,50 @@
 # tested on debian-11 based Raspi OS
 # with a rtl-sdr.com RTL2832U dongle
 #
-# last modified - 2022-0722
+# last modified
+#   2024-0323 - update to v5 weewx, pin golang version to 1.15
+#   2022-0722 - original
 #
+#----------------------------------------------
+# ref: mods in https://12142331737880961065.googlegroups.com/attach/9149d7bf0bb32/install%20weewx1.txt?part=0.2&view=1&vt=ANaJVrEBBHAvoXoeKpiCeETXBubddcHFb2kli08gMvUQBu7YbtgY0Iq34aSbAjjiwuUG8braPhA9SKr2jMBRlpafh8CmmJ-rVMcboLHFnNnU7DVPWqp45iU
 #----------------------------------------------
 
 # set these to 1 to run that block of code below
 
 INSTALL_PREREQS=1          # package prerequisites to build the software
 INSTALL_WEEWX=1            # weewx itself
-INSTALL_NGINX=1            # webserver for weewx
 INSTALL_LIBRTLSDR=1        # librtlsdr software
 INSTALL_RTLDAVIS=1         # weewx rtldavis driver
-RUN_WEEWX_AT_BOOT=1        # enable weewx in systemctl to startup at boot
+RUN_WEEWX_AT_BOOT=0        # enable weewx in systemctl to startup at boot
 
 #----------------------------------------------
 #
 # install required packages to enable building/running the software suite
+#
+# we pin golang to < 1.16 so Luc's instructions still work ok for
+# grabbing his code and building the resulting rtldavis binary
+# from source
+#
+# TODO: it would be nice to update Luc's instructions for modern golang
+#
 
 if [ "x${INSTALL_PREREQS}" = "x1" ]
 then
     echo ".......installing prereqs..........."
     sudo apt-get update 
     sudo apt-get -y install python3-configobj python3-pil python3-serial python3-usb python3-pip python3-ephem python3-cheetah
-    sudo apt-get -y install golang git cmake librtlsdr-dev
 fi
 
 #-----------------------------------------------
 #
-# install weewx (ref: https://weewx.com/docs/setup.htm)
+# install weewx via the pip method
+# and also nginx and hook them together
+# then stop weewx (for now) so we can reconfigure it
 
 if [ "x${INSTALL_WEEWX}" = "x1" ]
 then
-    echo ".......installing weewx............."
-    wget https://weewx.com/downloads/released_versions/weewx-4.8.0.tar.gz -O weewx-4.8.0.tar.gz
-    tar zxvf weewx-4.8.0.tar.gz 
-    cd weewx-4.8.0/
-    python3 setup.py build
-    sudo python3 setup.py install --no-prompt
-    sudo cp /home/weewx/util/systemd/weewx.service /etc/systemd/system
-
-    # we set debug=1 so later the driver will syslog the RF it sees
-    #  - you can later set it to 0 and restart weewx to quiet logging down
-    sudo sed -i 's|debug = 0|debug=1|' /home/weewx/weewx.conf
-
-    # optionally install a webserver and hook into weewx
-    #   - the resulting URL will be http://<ip_address>/weewx
-    if [ "x${INSTALL_NGINX}" = "x1" ]
-    then
-        sudo apt-get install -y nginx sqlite
-        sudo ln -s /home/weewx/public_html /var/www/html/weewx
-    fi
+  wget -q0 - https://raw.githubusercontent.com/vinceskahan/weewx-pipinstall/main/install-v5pip.sh | bash
+  sudo systemctl stop weewx
 fi
 
 #-----------------------------------------------
@@ -70,6 +64,7 @@ fi
 if [ "x${INSTALL_LIBRTLSDR}" = "x1" ]
 then
     echo ".......installing librtlsdr........."
+    sudo apt-get -y install golang-1.15 git cmake librtlsdr-dev
 
     # set up udev rules
     #
@@ -83,7 +78,7 @@ then
     cd /home/pi
     if [ -d librtlsdr ]
     then
-	rm -rf librtlsdr
+      rm -rf librtlsdr
     fi
     git clone https://github.com/steve-m/librtlsdr.git librtlsdr
     cd librtlsdr
@@ -101,23 +96,23 @@ then
     then
         echo ''                                                   >> ~/.profile
         echo '### CONFIGURE_GO_SETTINGS for rtdavis installation' >> ~/.profile
-        echo 'export GOROOT=/usr/lib/go'                          >> ~/.profile
+        echo 'export GOROOT=/usr/lib/go-1.15'                          >> ~/.profile
         echo 'export GOPATH=$HOME/work'                           >> ~/.profile
         echo 'export PATH=$PATH:$GOROOT/bin:$GOPATH/bin'          >> ~/.profile
     fi
 
     # for running here
-    export GOROOT=/usr/lib/go
+    export GOROOT=/usr/lib/go-1.15
     export GOPATH=$HOME/work
     export PATH=$PATH:$GOROOT/bin:$GOPATH/bin
 
     # get rtldavis the hard way - this does not work
     cd /home/pi
-    go get -v github.com/lheijst/rtldavis
+    /usr/lib/go-1.15/bin/go get -v github.com/lheijst/rtldavis
     cd $GOPATH/src/github.com/lheijst/rtldavis
     git submodule init
     git submodule update
-    go install -v .
+    /usr/lib/go-1.15/bin/go install -v .
 
     # for US users, to test rtldavis, run:
     #    $GOPATH/bin/rtldavis -tf US
@@ -141,27 +136,27 @@ fi
 #-----------------------------------------------
 #
 # install the rtldavis weewx driver
+# FIXME: this assumes you did a venv pip installation
 
 if [ "x${INSTALL_RTLDAVIS}" = "x1" ]
 then
     echo ".......installing rtldavis.........."
-    cd /home/pi
-    sudo wget -O weewx-rtldavis-master.zip https://github.com/lheijst/weewx-rtldavis/archive/master.zip
-    sudo /home/weewx/bin/wee_extension --install weewx-rtldavis-master.zip
-    sudo /home/weewx/bin/wee_config --reconfigure --driver=user.rtldavis --no-prompt
+    source /home/pi/weewx-venv/bin/activate
+    weectl extension install -y https://github.com/lheijst/weewx-rtldavis/archive/master.zip
+    weectl station reconfigure --driver=user.rtldavis --no-prompt
 
     # remove the template instruction from the config file
     echo "editing options..."
-    sudo sed -i -e s/\\[options\\]// /home/weewx/weewx.conf
+    sudo sed -i -e s/\\[options\\]// /home/pi/weewx-data/weewx.conf
 
     # US frequencies and imperial units
     echo "editing US settings..."
-    sudo sed -i -e s/frequency\ =\ EU/frequency\ =\ US/             /home/weewx/weewx.conf
-    sudo sed -i -e s/rain_bucket_type\ =\ 1/rain_bucket_type\ =\ 0/ /home/weewx/weewx.conf
+    sed -i -e s/frequency\ =\ EU/frequency\ =\ US/             /home/pi/weewx-data/weewx.conf
+    sed -i -e s/rain_bucket_type\ =\ 1/rain_bucket_type\ =\ 0/ /home/pi/weewx-data/weewx.conf
 
     # for very verbose logging of readings
     echo "editing debug..."
-    sudo sed -i -e s/debug_rtld\ =\ 2/debug_rtld\ =\ 3/             /home/weewx/weewx.conf
+    sed -i -e s/debug_rtld\ =\ 2/debug_rtld\ =\ 3/             /home/pi/weewx-data/weewx.conf
 
 fi
 
@@ -169,6 +164,8 @@ fi
 
 if [ "x${RUN_WEEWX_AT_BOOT}" = "x1" ]
 then
+    #TODO: again use the other repo script to do weewx+nginx+enabling etc....
+
     # enable weewx for next reboot
     sudo systemctl enable weewx
 fi

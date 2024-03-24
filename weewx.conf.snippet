@@ -1,0 +1,56 @@
+
+#-----------------------------------------------------------------
+# this is the weewx.conf I use for testing in the US with a
+# US version of the VP2
+#-----------------------------------------------------------------
+
+[Rtldavis]
+    # This section is for the rtldavis sdr-rtl USB receiver.
+    
+    cmd = /home/pi/work/bin/rtldavis
+    # Options:
+    # -ppm = frequency correction of rtl dongle in ppm; default = 0
+    # -gain = tuner gain in tenths of Db; default = 0 means "auto gain"
+    # -ex = extra loopTime in ms; default = 0
+    # -fc = frequency correction for all channels; default = 0
+    # -u  = log undefined signals
+    #
+    # The options below will autoamically be set
+    # -tf = transmitter frequencies, US, NZ or EU
+    # -tr = transmitters: tr1=1,  tr2=2,  tr3=4,  tr4=8, 
+    #                     tr5=16, tr6=32, tr7=64, tr8=128
+    
+    # Radio frequency to use between USB transceiver and console: US, NZ or EU
+    # US uses 915 MHz, NZ uses 921 MHz and EU uses 868.3 MHz.  Default is EU.
+    transceiver_frequency = US
+    
+    # Used channels: 0=not present, 1-8)
+    # The channel of the Vantage Vue ISS or Vantage Pro or Pro2 ISS
+    iss_channel = 1
+    # The values below only apply for Vantage Pro or Pro2
+    anemometer_channel = 0
+    leaf_soil_channel = 0
+    temp_hum_1_channel = 0
+    temp_hum_2_channel = 0
+    # rain bucket type (0: 0.01 inch, 1: 0.2 mm)
+    rain_bucket_type = 0
+    
+    # Print debug messages
+    # 0=no logging; 1=minimum logging; 2=normal logging; 3=detailed logging
+    debug_parse = 0
+    debug_rain = 0
+    debug_rtld = 0    # rtldavis logging: 1=inf; 2=(1)+data+chan; 3=(2)+pkt
+   
+    # note: for initial debugging debug_rtld = 3 is VERY chatty and
+    #       even with debug_rtld=1 it's too chatty for me,
+    #       so once you have it working, set it to 0 probably to avoid
+    #       ridiculous logging of every packet and what the driver is doing
+ 
+    # The pct_good per transmitter can be saved to the database
+    # This has only effect with 2 transmitters or more
+    save_pct_good_per_transmitter = False
+
+    # The driver to use:
+    driver = user.rtldavis
+
+#-----------------------------------------------------------------
