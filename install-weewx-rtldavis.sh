@@ -1,9 +1,8 @@
 #----------------------------------------------
 #
-# scripted install of weewx with rtldavis driver
-# set to US units
+# scripted install of weewx with rtldavis driver set to US units
 #
-# tested on debian-11 based Raspi OS
+# tested on debian-12 based Raspi OS
 # with a rtl-sdr.com RTL2832U dongle
 #
 # last modified
@@ -11,7 +10,9 @@
 #   2022-0722 - original
 #
 #----------------------------------------------
-# ref: mods in https://12142331737880961065.googlegroups.com/attach/9149d7bf0bb32/install%20weewx1.txt?part=0.2&view=1&vt=ANaJVrEBBHAvoXoeKpiCeETXBubddcHFb2kli08gMvUQBu7YbtgY0Iq34aSbAjjiwuUG8braPhA9SKr2jMBRlpafh8CmmJ-rVMcboLHFnNnU7DVPWqp45iU
+# credits - thanks to another weewx user noticing that golang-1.15 still works
+#           which was buried in their attachments in 
+#            https://groups.google.com/g/weewx-user/c/bGiQPuOljqs/m/Mrvwe50UCQAJ
 #----------------------------------------------
 
 # set these to 1 to run that block of code below
@@ -25,12 +26,8 @@ RUN_WEEWX_AT_BOOT=0        # enable weewx in systemctl to startup at boot
 #----------------------------------------------
 #
 # install required packages to enable building/running the software suite
-#
-# we pin golang to < 1.16 so Luc's instructions still work ok for
-# grabbing his code and building the resulting rtldavis binary
-# from source
-#
-# TODO: it would be nice to update Luc's instructions for modern golang
+# some of these might actually not be needed for v5 pip installations in a venv
+# but I'll leave them here just in case
 #
 
 if [ "x${INSTALL_PREREQS}" = "x1" ]
@@ -45,6 +42,12 @@ fi
 # install weewx via the pip method
 # and also nginx and hook them together
 # then stop weewx (for now) so we can reconfigure it
+#
+# rather than duplicate the code here, this calls my other repo
+# with the end-to-end script for this that can run standalone
+#
+# if piping wget to bash concerns you, please read the code there
+# which hopefully is clear enough to put your mind at ease
 
 if [ "x${INSTALL_WEEWX}" = "x1" ]
 then
@@ -59,6 +62,10 @@ fi
 # changes - on debian-11 raspi we set the cmake option below to =OFF
 #           rather than using the instructions in the older link above so that
 #           we suppress librtlsdr writing a conflicting udev rules file into place
+#
+# you might need to edit the udev rule below if you have different tuner hardware
+# so you might want to plug it in and run 'lsusb' and check the vendor and product values
+# before proceeding
 #
 
 if [ "x${INSTALL_LIBRTLSDR}" = "x1" ]
@@ -106,7 +113,11 @@ then
     export GOPATH=$HOME/work
     export PATH=$PATH:$GOROOT/bin:$GOPATH/bin
 
-    # get rtldavis the hard way - this does not work
+    # we pin golang to < 1.16 so Luc's instructions still work ok for
+    # grabbing his code and building the resulting rtldavis binary
+    # from source the old way.  Note however that this does not link that
+    # version into the normal $PATH, so you need to call it with its full path
+
     cd /home/pi
     /usr/lib/go-1.15/bin/go get -v github.com/lheijst/rtldavis
     cd $GOPATH/src/github.com/lheijst/rtldavis
@@ -136,7 +147,7 @@ fi
 #-----------------------------------------------
 #
 # install the rtldavis weewx driver
-# FIXME: this assumes you did a venv pip installation
+# this assumes you did a venv pip installation
 
 if [ "x${INSTALL_RTLDAVIS}" = "x1" ]
 then
@@ -164,8 +175,6 @@ fi
 
 if [ "x${RUN_WEEWX_AT_BOOT}" = "x1" ]
 then
-    #TODO: again use the other repo script to do weewx+nginx+enabling etc....
-
     # enable weewx for next reboot
     sudo systemctl enable weewx
 fi
