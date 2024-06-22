@@ -51,7 +51,7 @@ fi
 
 if [ "x${INSTALL_WEEWX}" = "x1" ]
 then
-  wget -q0 - https://raw.githubusercontent.com/vinceskahan/weewx-pipinstall/main/install-v5pip.sh | bash
+  wget -qO - https://raw.githubusercontent.com/vinceskahan/weewx-pipinstall/main/install-v5pip.sh | bash
   sudo systemctl stop weewx
 fi
 
