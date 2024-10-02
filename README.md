@@ -26,4 +26,13 @@ Notes:
 
  - code assumes it is run as user 'pi' on a raspi of course, which is
        hardcoded throughout.
+
+ - since go1.15 is no longer available in debian12 default repos, this script
+       now installs a 'local' copy of go under /home/pi/go/bin and also
+       installs rtldavis there.
+
+ - the default weewx.conf that this installs has 'very' (like 'VERY') verbose
+       logging enabled for rtldavis.  You'll almost certainly want to dial that
+       back after you get things working.  See the driver section in weewx.conf
+       for details.
         

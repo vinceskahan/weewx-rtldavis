@@ -6,6 +6,7 @@
 # with a rtl-sdr.com RTL2832U dongle
 #
 # last modified
+#   2024-1002 - no 1.15 dpkg in deb12, install local go manually
 #   2024-0323 - update to v5 weewx, pin golang version to 1.15
 #   2022-0722 - original
 #
@@ -21,7 +22,7 @@ INSTALL_PREREQS=1          # package prerequisites to build the software
 INSTALL_WEEWX=1            # weewx itself
 INSTALL_LIBRTLSDR=1        # librtlsdr software
 INSTALL_RTLDAVIS=1         # weewx rtldavis driver
-RUN_WEEWX_AT_BOOT=0        # enable weewx in systemctl to startup at boot
+RUN_WEEWX_AT_BOOT=1        # enable weewx in systemctl to startup at boot
 
 #----------------------------------------------
 #
@@ -51,7 +52,7 @@ fi
 
 if [ "x${INSTALL_WEEWX}" = "x1" ]
 then
-  wget -q0 - https://raw.githubusercontent.com/vinceskahan/weewx-pipinstall/main/install-v5pip.sh | bash
+  wget -qO - https://raw.githubusercontent.com/vinceskahan/weewx-pipinstall/main/install-v5pip.sh | bash
   sudo systemctl stop weewx
 fi
 
@@ -71,7 +72,7 @@ fi
 if [ "x${INSTALL_LIBRTLSDR}" = "x1" ]
 then
     echo ".......installing librtlsdr........."
-    sudo apt-get -y install golang-1.15 git cmake librtlsdr-dev
+    sudo apt-get -y install git cmake librtlsdr-dev golang
 
     # set up udev rules
     #
@@ -87,6 +88,9 @@ then
     then
       rm -rf librtlsdr
     fi
+
+    # install librtlsdr
+    cd
     git clone https://github.com/steve-m/librtlsdr.git librtlsdr
     cd librtlsdr
     mkdir build
@@ -96,6 +100,11 @@ then
     sudo make install
     sudo ldconfig
 
+    # use the system go to install the proper local version of go
+    cd
+    go install golang.org/dl/go1.15@latest
+    go/bin/go1.15 download
+
     # add to .profile for future
     #    'source ~/.profile' to catch up interactively
     GO_INFO_FOUND=`grep CONFIGURE_GO_SETTINGS ~/.profile | wc -l | awk '{print $1}'`
@@ -103,27 +112,30 @@ then
     then
         echo ''                                                   >> ~/.profile
         echo '### CONFIGURE_GO_SETTINGS for rtdavis installation' >> ~/.profile
-        echo 'export GOROOT=/usr/lib/go-1.15'                          >> ~/.profile
-        echo 'export GOPATH=$HOME/work'                           >> ~/.profile
-        echo 'export PATH=$PATH:$GOROOT/bin:$GOPATH/bin'          >> ~/.profile
+        echo GOPATH=/home/pi/go >> ~/.profile
+        echo GOROOT=/home/pi/sdk/go1.15 >> ~/.profile
+        export PATH=$PATH:$GOROOT/bin:$GOPATH/bin >> ~/.profile
     fi
 
     # for running here
-    export GOROOT=/usr/lib/go-1.15
-    export GOPATH=$HOME/work
+    GOPATH=/home/pi/go
+    GOROOT=/home/pi/sdk/go1.15
     export PATH=$PATH:$GOROOT/bin:$GOPATH/bin
+    hash -r
 
     # we pin golang to < 1.16 so Luc's instructions still work ok for
     # grabbing his code and building the resulting rtldavis binary
     # from source the old way.  Note however that this does not link that
     # version into the normal $PATH, so you need to call it with its full path
+    #
+    # the export PATH above 'might' work but we'll use full paths to be safe
 
-    cd /home/pi
-    /usr/lib/go-1.15/bin/go get -v github.com/lheijst/rtldavis
-    cd $GOPATH/src/github.com/lheijst/rtldavis
+    # install luc's code
+    /home/pi/go/bin/go1.15 get -v github.com/lheijst/rtldavis
+    cd go/src/github.com/lheijst/rtldavis/
     git submodule init
     git submodule update
-    /usr/lib/go-1.15/bin/go install -v .
+    /home/pi/go/bin/go1.15 install -v .
 
     # for US users, to test rtldavis, run:
     #    $GOPATH/bin/rtldavis -tf US
@@ -165,6 +177,9 @@ then
     sed -i -e s/frequency\ =\ EU/frequency\ =\ US/             /home/pi/weewx-data/weewx.conf
     sed -i -e s/rain_bucket_type\ =\ 1/rain_bucket_type\ =\ 0/ /home/pi/weewx-data/weewx.conf
 
+    # we install rtldavis to a different place than Luc so patch the "cmd =" line
+    sed -i -e s:/home/pi/work/bin/rtldavis:/home/pi/go/bin/rtldavis: /home/pi/weewx-data/weewx.conf
+
     # for very verbose logging of readings
     echo "editing debug..."
     sed -i -e s/debug_rtld\ =\ 2/debug_rtld\ =\ 3/             /home/pi/weewx-data/weewx.conf
@@ -194,3 +209,4 @@ fi
 # if you want to run 'rtldavis' as a non-privileged user, you should reboot here
 #
 #-----------------------------------------------
+
